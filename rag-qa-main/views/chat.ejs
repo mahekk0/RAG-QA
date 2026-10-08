@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chat · Document Q&A</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body class="chat-page">
+    <aside class="sidebar">
+      <a class="sidebar-brand" href="/">DQ</a>
+      <div class="document-label">CURRENT DOCUMENT</div>
+      <div class="document-name" title="<%= filename %>"><%= filename %></div>
+      <a class="new-document" href="/">+ Upload another PDF</a>
+    </aside>
+    <main class="chat-shell">
+      <header class="chat-header"><div><h1>Document chat</h1><p>Answers are based solely on your uploaded PDF.</p></div></header>
+      <section id="messages" class="messages" aria-live="polite">
+        <div class="empty-state"><div class="empty-icon">✦</div><h2>What would you like to know?</h2><p>Ask a question about <strong><%= filename %></strong>.</p></div>
+      </section>
+      <form id="query-form" class="query-form">
+        <input id="question" type="text" maxlength="2000" placeholder="Ask a question about this document…" autocomplete="off" required />
+        <button id="send-button" type="submit">Send</button>
+      </form>
+    </main>
+    <script>
+      const filename = <%- JSON.stringify(filename) %>;
+      const form = document.getElementById("query-form");
+      const input = document.getElementById("question");
+      const messages = document.getElementById("messages");
+      const sendButton = document.getElementById("send-button");
+
+      function bubble(role, content = "") {
+        const node = document.createElement("div");
+        node.className = `message ${role}`;
+        node.textContent = content;
+        messages.appendChild(node);
+        messages.scrollTop = messages.scrollHeight;
+        return node;
+      }
+      function removeEmptyState() { messages.querySelector(".empty-state")?.remove(); }
+      function setBusy(busy) { input.disabled = busy; sendButton.disabled = busy; }
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const question = input.value.trim();
+        if (!question) return;
+        removeEmptyState();
+        bubble("user", question);
+        input.value = "";
+        setBusy(true);
+        const answerBubble = bubble("assistant", "");
+        const typing = document.createElement("span");
+        typing.className = "typing";
+        typing.textContent = "Thinking";
+        answerBubble.appendChild(typing);
+
+        try {
+          const response = await fetch("/query", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ question, filename })
+          });
+          if (!response.ok || !response.body) throw new Error("The answer request failed.");
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let pending = "";
+          let answer = "";
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            pending += decoder.decode(value, { stream: true });
+            const events = pending.split("\n\n");
+            pending = events.pop();
+            for (const eventText of events) {
+              const event = eventText.match(/^event: (.+)$/m)?.[1];
+              const dataLine = eventText.match(/^data: (.+)$/m)?.[1];
+              if (!event || !dataLine) continue;
+              const data = JSON.parse(dataLine);
+              if (event === "token") {
+                answer += data.token;
+                answerBubble.textContent = answer;
+                messages.scrollTop = messages.scrollHeight;
+              } else if (event === "done") {
+                answer = data.answer;
+                answerBubble.textContent = answer;
+              } else if (event === "error") {
+                throw new Error(data.message);
+              }
+            }
+          }
+        } catch (error) {
+          answerBubble.textContent = `Error: ${error.message || "Unable to get an answer."}`;
+        } finally {
+          setBusy(false);
+          input.focus();
+          messages.scrollTop = messages.scrollHeight;
+        }
+      });
+    </script>
+  </body>
+</html>

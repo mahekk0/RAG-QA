@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document Q&A</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body class="landing-page">
+    <main class="upload-card">
+      <div class="brand-mark">DQ</div>
+      <h1>Ask your document</h1>
+      <p>Upload a PDF and get clear answers grounded only in its contents.</p>
+      <form id="upload-form" action="/upload" method="post" enctype="multipart/form-data">
+        <label class="file-picker" for="document">
+          <span class="file-icon">↑</span>
+          <span id="file-label">Choose a PDF (max 10 MB)</span>
+          <input id="document" name="document" type="file" accept="application/pdf" required />
+        </label>
+        <button id="upload-button" type="submit">Upload and continue</button>
+      </form>
+      <div id="upload-loading" class="loading hidden"><span class="spinner"></span> Reading and indexing your document…</div>
+    </main>
+    <script>
+      const input = document.getElementById("document");
+      const label = document.getElementById("file-label");
+      const form = document.getElementById("upload-form");
+      input.addEventListener("change", () => { label.textContent = input.files[0]?.name || "Choose a PDF (max 10 MB)"; });
+      form.addEventListener("submit", () => {
+        document.getElementById("upload-button").disabled = true;
+        document.getElementById("upload-loading").classList.remove("hidden");
+      });
+    </script>
+  </body>
+</html>
